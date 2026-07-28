@@ -49,9 +49,9 @@ PatchMesh createTerrain(float xMin=-45.0f, float zMin=-90.0f, float xStep=10.0f,
 void drawTerrain(ShaderProgram& program, PatchMesh& terrainMesh) {
 	glBindVertexArray(terrainMesh.vaoID);
 	glPatchParameteri(GL_PATCH_VERTICES, terrainMesh.verticesPerPatch);
-
-	// >>>> Use glUniform3fv here to set the current eye position as a uniform variable <<<<
-    
+	
+	glUniform3fv(program.getUniformLocation("eyePos"), 1, glm::value_ptr(window::eyePos));
+	
     // Bind the heightmap to texturing unit 0
     glActiveTexture(GL_TEXTURE0);
     textures["heightMap"].bind();
