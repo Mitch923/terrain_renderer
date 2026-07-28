@@ -1,0 +1,30 @@
+#version 410
+
+layout(quads, equal_spacing, ccw) in;
+
+uniform mat4 viewMatrix;
+uniform mat4 projMatrix;
+uniform sampler2D heightMap;
+
+const float xMin = -45.0, xMax = +45.0, zMin = 0.0, zMax = -90.0;
+
+void main() {
+    vec4 posn;
+    float u = gl_TessCoord.x;
+    float v = gl_TessCoord.y; 
+
+    vec2 texCoord = vec2((posn.x - xMin)/(xMax - xMin), 
+                        (posn.y - zMin)/(zMax - zMin));
+    
+    float height = texture(heightMap, texCoord).r;
+
+    posn = (1-u) * (1-v) * gl_in[0].gl_Position
+            + u * (1-v) * gl_in[1].gl_Position
+            + u * v * gl_in[2].gl_Position
+            + (1-u) * v * gl_in[3].gl_Position;
+    
+
+    posn.y = height * 10;
+
+    gl_Position = projMatrix * viewMatrix * posn;
+}
