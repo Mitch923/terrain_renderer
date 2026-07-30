@@ -18,6 +18,17 @@
 const unsigned int MAX_LIGHTS = 10; // Don't attempt to change MAX_LIGHTS unless you will also change the corresponding constant in the fragment shader
 const int POLL_DELAY = 17; // In milliseconds
 
+// Tesselation LOD Settings
+const GLfloat TESS_LEVEL_HIGH = 100.0f;
+const GLfloat TESS_LEVEL_LOW = 30.0f;
+const GLfloat TESS_DIST_MIN = 10.0f;
+const GLfloat TESS_DIST_MAX = 100.0f;
+
+// Terrain settings
+const GLfloat TERRAIN_MAX_HEIGHT = 5.0f;
+const GLfloat TERRAIN_FREQ = 0.005f;
+const GLfloat TERRAIN_AMP = 1.0f;
+
 float globalTime = 0.0f; // In seconds
 PatchMesh terrainMesh;
 std::unordered_map<std::string, Mesh> meshes;
@@ -123,11 +134,22 @@ void init() {
     // The correct program must be set as active when uniform values corresponding to that program are modified
     tessProgram.setAsActiveProgram();
 	// Textures sampler locations for the tesselation program
-	glUniform1i(tessProgram.getUniformLocation("heightMap"), 0); // heightmap texture sampler will use texturing unit 0
+	glUniform3fv(tessProgram.getUniformLocation("eyePos"), 1, glm::value_ptr(window::eyePos));
+	glUniform1f(tessProgram.getUniformLocation("heightMap"), 0); // heightmap texture sampler will use texturing unit 0
+	glUniform1f(tessProgram.getUniformLocation("levelHigh"), TESS_LEVEL_HIGH);
+	glUniform1f(tessProgram.getUniformLocation("levelLow"), TESS_LEVEL_LOW);
+	glUniform1f(tessProgram.getUniformLocation("distMin"), TESS_DIST_MIN);
+	glUniform1f(tessProgram.getUniformLocation("distMax"), TESS_DIST_MAX);
+
+	// Terrain Uniforms
+	glUniform1f(tessProgram.getUniformLocation("terrainMaxHeight"), TERRAIN_MAX_HEIGHT);
+	glUniform1f(tessProgram.getUniformLocation("terrainFrequency"), TERRAIN_FREQ);
+	glUniform1f(tessProgram.getUniformLocation("terrainAmplitude"), TERRAIN_AMP);
 
     // Create terrain
-    terrainMesh = createTerrain();
-	textures["heightMap"] = Texture("../assets/Terrain_hm_01.tga", GL_CLAMP_TO_EDGE);
+    const float terrainSeed = rand();
+ //    terrainMesh = createTerrain();
+	// textures["heightMap"] = Texture("../assets/Terrain_hm_01.tga", GL_CLAMP_TO_EDGE);
 
 	// Load the basic (vertex-fragment) shader program
 	basicProgram = ShaderProgram({

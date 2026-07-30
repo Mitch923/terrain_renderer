@@ -2,20 +2,24 @@
 
 layout(vertices = 4) out;
 uniform vec3 eyePos;
-uniform uint levelHigh;
-uniform uint levelLow;
+uniform float levelHigh;
+uniform float levelLow;
+uniform float distMin;
+uniform float distMax;
 
 void main() {
+
     gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
 
     vec3 avg = 0.25 * (gl_in[0].gl_Position
                         + gl_in[1].gl_Position
                         + gl_in[2].gl_Position
                         + gl_in[3].gl_Position).xyz;
-    float dist = distance(eyePos, avg);
+    float dist = clamp(distance(eyePos, avg), distMin, distMax);
+    float normalizedDist = (dist - distMin) / (distMax - distMin);
+    float level = mix(levelHigh, levelLow, normalizedDist);
 
     if (gl_InvocationID == 0) {
-        int level = 6;
         gl_TessLevelOuter[0] = level;
         gl_TessLevelOuter[1] = level;
         gl_TessLevelOuter[2] = level;
