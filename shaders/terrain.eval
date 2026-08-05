@@ -16,6 +16,8 @@ out vec3 positionEyeSpace;
 out vec3 normalEyeSpace;
 out vec3 diffuseColour;
 out vec2 texCoord;
+out float slope;
+out float heightNorm;
 
 const float xMin = -45.0, xMax = +45.0, zMin = 0.0, zMax = -90.0;
 
@@ -55,17 +57,18 @@ float getTerrainHeight(vec2 pos) {
     float totalHeight = 0.0;
     float frequency = terrainFrequency;
     float amplitude = terrainAmplitude;
+    float maxAmplitude = 0.0;
 
     for (int i = 0; i < 5; i++) {
-
         float noise = snoise(pos * frequency);
         totalHeight += noise * amplitude;
+        maxAmplitude += amplitude;
 
         amplitude *= 0.5;
         frequency *= 2.0;
     }
 
-    return totalHeight * terrainMaxHeight;
+    return (totalHeight / maxAmplitude) * terrainMaxHeight; // Bound to terrainMaxHeight
 }
 
 void main() {
@@ -100,6 +103,8 @@ void main() {
 
 
     // Outputs for terrain.frag
+    slope = 1.0 - normalWorld.y;
+    heightNorm = clamp(posn.y / (terrainMaxHeight * 10) * 0.5 + 0.5, 0.0, 1.0);
     normalEyeSpace = normalize(mat3(viewMatrix) * normalWorld);
     gl_Position = projMatrix * viewMatrix * posn;
     positionEyeSpace = vec3(viewMatrix * posn);

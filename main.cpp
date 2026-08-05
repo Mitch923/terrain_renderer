@@ -68,6 +68,14 @@ void drawTerrain(ShaderProgram& program, PatchMesh& terrainMesh) {
     // Bind the grass texture to texturing unit 0
     glActiveTexture(GL_TEXTURE0);
     textures["grass"].bind();
+    glActiveTexture(GL_TEXTURE1);
+    // Specular texture here
+    glActiveTexture(GL_TEXTURE2);
+    textures["rock"].bind();
+    glActiveTexture(GL_TEXTURE3);
+    textures["snow"].bind();
+    glActiveTexture(GL_TEXTURE4);
+    textures["sand"].bind();
 
     // Draw the terrain
 	glDrawElements(GL_PATCHES, terrainMesh.elements.size(), GL_UNSIGNED_INT, NULL);
@@ -151,6 +159,9 @@ void init() {
 	// Terrain Lighting Uniforms
 	glUniform1i(tessProgram.getUniformLocation("diffuseTexture"), 0);
 	glUniform1i(tessProgram.getUniformLocation("specularTexture"), 1);
+	glUniform1i(tessProgram.getUniformLocation("rockTexture"), 2);
+	glUniform1i(tessProgram.getUniformLocation("snowTexture"), 3);
+	glUniform1i(tessProgram.getUniformLocation("sandTexture"), 4);
 	glUniform1i(tessProgram.getUniformLocation("applyDiffuseTexture"), GL_TRUE);
 	glUniform1i(tessProgram.getUniformLocation("applySpecularTexture"), GL_FALSE);
 
@@ -160,6 +171,9 @@ void init() {
 
     // Terrain Texturing
     textures["grass"] = Texture("../assets/terrain_textures/grass/leafy_grass_diff_1k.jpg", GL_REPEAT);
+    textures["snow"] = Texture("../assets/terrain_textures/snow/snow_02_diff_1k.jpg", GL_REPEAT);
+    textures["sand"] = Texture("../assets/terrain_textures/sand/aerial_beach_01_diff_1k.jpg", GL_REPEAT);
+    textures["rock"] = Texture("../assets/terrain_textures/rock/rocks_ground_06_diff_1k.jpg", GL_REPEAT);
 	// textures["heightMap"] = Texture("../assets/Terrain_hm_01.tga", GL_CLAMP_TO_EDGE);
 
 	// Load the basic (vertex-fragment) shader program

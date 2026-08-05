@@ -3,6 +3,9 @@
 
 uniform sampler2D diffuseTexture;
 uniform sampler2D specularTexture;
+uniform sampler2D rockTexture;
+uniform sampler2D snowTexture;
+uniform sampler2D sandTexture;
 
 out vec4 fragColour;
 
@@ -10,6 +13,8 @@ in vec3 positionEyeSpace;
 in vec3 normalEyeSpace;
 in vec3 diffuseColour;
 in vec2 texCoord;
+in float slope;
+in float heightNorm;
 
 uniform vec3 specularColour;
 uniform bool applyDiffuseTexture;
@@ -23,16 +28,21 @@ const float ambientFactor = 0.2;
 const float alphaCutoff = 0.01;
 
 void main() {
-    // Modulate diffuse colour with diffuse texture if enabled
-    vec3 modulatedDiffuseColour = diffuseColour;
-    float alpha = 1.0;
-    if (applyDiffuseTexture) {
-        vec4 diffuseTextureColour = texture(diffuseTexture, texCoord);
-        // The alpha channel denotes opacity. We will record it to use in the final fragColour, but blending needs to be enabled for it to have an effect
-        alpha = diffuseTextureColour.a;
-        if (alpha < alphaCutoff) discard; // This provides limited transparency support even when blending is disabled
-        modulatedDiffuseColour *= diffuseTextureColour.rgb;
-    }
+    // Texture colors
+    vec3 grassColour = texture(diffuseTexture, texCoord).rgb;
+    vec3 rockColour = texture(rockTexture, texCoord).rgb;
+    vec3 snowColour = texture(snowTexture, texCoord).rgb;
+
+    float heightBlend = smoothstep(0.55, 0.75, heightNorm);
+    float slopeBlend = smoothstep(0.25, 0.5, slope);
+
+    vec3 baseColour = mix(grassColour, snowColour, heightBlend);
+    vec3 terrainColour = mix(baseColour, rockColour, slopeBlend);
+
+    vec3 modulatedDiffuseColour = diffuseColour * terrainColour;
+
+    float alpha = texture(diffuseTexture, texCoord).a;
+    if (alpha < alphaCutoff) discard; // This provides limited transparency support even when blending is disabled
 
     // Modulate specular colour with specular texture if enabled
     vec3 modulatedSpecularColour = specularColour;
