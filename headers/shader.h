@@ -30,20 +30,20 @@ class ShaderProgram {
             glUseProgram(programID);
         }
 
-        // Use this function to get uniform locations for this shader program. It will only perform the slow glGetUniformLocation() call the first time a uniform location 
+        // Use this function to get uniform locations for this shader program. It will only perform the slow glGetUniformLocation() call the first time a uniform location
         // is accessed. Subsequent calls will instead fetch the uniform location from a hashmap (std::unordered_map).
         GLuint getUniformLocation(const std::string& name) {
             if (uniforms.count(name) == 0) registerUniform(name);
             return uniforms[name];
         }
-    
+
     private:
         GLuint programID;
         // Uniform locations for variables
         std::unordered_map<std::string, GLuint> uniforms;
 
         // Check for compilation errors during shader compilation or program linking
-        void checkErrors(GLuint id, bool isShader) {
+        void checkErrors(GLuint id, bool isShader, const std::string& filePath = "") {
             GLint status;
             if (isShader) glGetShaderiv(id, GL_COMPILE_STATUS, &status);
                     else  glGetProgramiv(id, GL_LINK_STATUS, &status);
@@ -56,7 +56,9 @@ class ShaderProgram {
                 GLchar *strInfoLog = new GLchar[infoLogLength + 1];
                 if (isShader) {
                     glGetShaderInfoLog(id, infoLogLength, NULL, strInfoLog);
-                    std::cerr << "Compile failure in shader: " << strInfoLog << std::endl;
+                    std::cerr << "Compile failure in shader";
+                    if (!filePath.empty()) std::cerr << " (" << filePath << ")";
+                    std::cerr << ": " << strInfoLog << std::endl;
                 } else {
                     glGetProgramInfoLog(id, infoLogLength, NULL, strInfoLog);
                     std::cerr << "Failed to link shader program: " << strInfoLog << std::endl;
@@ -78,7 +80,7 @@ class ShaderProgram {
             GLuint shader = glCreateShader(shaderType);
             glShaderSource(shader, 1, &shaderTxt, NULL);
             glCompileShader(shader);
-            checkErrors(shader, true);
+            checkErrors(shader, true, filename);
             return shader;
         }
 

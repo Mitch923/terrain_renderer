@@ -22,8 +22,7 @@ void main() {
     normalEyeSpace = normalize(vec3(normalMatrix*vec4(normalIn, 1.0)));
     // And finally, projection matrix
     gl_Position = projMatrix*vec4(positionEyeSpace, 1.0);
-    
+
     diffuseColour = colourIn;
     texCoord = texCoordIn;
 }
-
