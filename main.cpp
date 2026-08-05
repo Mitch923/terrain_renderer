@@ -1,4 +1,5 @@
 #include <GL/glew.h>
+#include <GL/gl.h>
 
 #include "headers/shader.h"
 #include "headers/texture.h"
@@ -38,17 +39,17 @@ std::vector<glm::vec3> lightColours;
 ShaderProgram basicProgram, tessProgram;
 
 // Create a mesh that consists of a grid of 100 vertices arranged into square patches
-PatchMesh createTerrain(float xMin=-45.0f, float zMin=-90.0f, float xStep=10.0f, float zStep=10.0f) { 
+PatchMesh createTerrain(float xMin=-45.0f, float zMin=-90.0f, float xStep=10.0f, float zStep=10.0f) {
     PatchMesh m = PatchMesh(4); // 4 vertices per patch
     for (unsigned int zIndex = 0; zIndex < 10; zIndex++) {
         for (unsigned int xIndex = 0; xIndex < 10; xIndex++) {
             m.addVert(glm::vec3(xMin + xIndex*xStep, 0.0f, zMin + zIndex*zStep));
             if (xIndex > 0 && zIndex > 0) {
                 m.addElements({
-                    (xIndex-1) + (zIndex-1)*10, 
-                    (xIndex-1) +  zIndex   *10, 
-                     xIndex    +  zIndex   *10, 
-                     xIndex    + (zIndex-1)*10 
+                    (xIndex-1) + (zIndex-1)*10,
+                    (xIndex-1) +  zIndex   *10,
+                     xIndex    +  zIndex   *10,
+                     xIndex    + (zIndex-1)*10
                 });
             }
         }
@@ -60,19 +61,20 @@ PatchMesh createTerrain(float xMin=-45.0f, float zMin=-90.0f, float xStep=10.0f,
 void drawTerrain(ShaderProgram& program, PatchMesh& terrainMesh) {
 	glBindVertexArray(terrainMesh.vaoID);
 	glPatchParameteri(GL_PATCH_VERTICES, terrainMesh.verticesPerPatch);
-	
+
 	glUniform3fv(program.getUniformLocation("eyePos"), 1, glm::value_ptr(window::eyePos));
-	
-    // Bind the heightmap to texturing unit 0
+	glUniform3fv(program.getUniformLocation("specularColour"), 1, glm::value_ptr(glm::vec3(1, 1, 1)));
+
+    // Bind the grass texture to texturing unit 0
     glActiveTexture(GL_TEXTURE0);
-    textures["heightMap"].bind();
+    textures["grass"].bind();
 
     // Draw the terrain
 	glDrawElements(GL_PATCHES, terrainMesh.elements.size(), GL_UNSIGNED_INT, NULL);
 }
 
 // Sets camera and lighting uniforms on a shader program. Should be run once per frame to keep camera parameters current
-void setCameraAndLightUniforms(ShaderProgram& program, glm::mat4& proj, glm::mat4& view, 
+void setCameraAndLightUniforms(ShaderProgram& program, glm::mat4& proj, glm::mat4& view,
 							   std::vector<glm::vec3>& lightPositions, std::vector<glm::vec3>& lightColours) {
 	glUniformMatrix4fv(program.getUniformLocation("viewMatrix"), 1, GL_FALSE, glm::value_ptr(view));
 	glUniformMatrix4fv(program.getUniformLocation("projMatrix"), 1, GL_FALSE, glm::value_ptr(proj));
@@ -81,8 +83,8 @@ void setCameraAndLightUniforms(ShaderProgram& program, glm::mat4& proj, glm::mat
 	glUniform1ui(program.getUniformLocation("numLights"), numLights);
 	std::vector<glm::vec3> lightPositionsEyeSpace;
 	for (unsigned int i = 0; i < numLights; i++) lightPositionsEyeSpace.push_back(glm::vec3(view * glm::vec4(lightPositions[i], 1.0f)));
-	glUniform3fv(program.getUniformLocation("lightPositionsEyeSpace"), numLights, glm::value_ptr(lightPositionsEyeSpace[0])); 
-	glUniform3fv(program.getUniformLocation("lightColours"), numLights, glm::value_ptr(lightColours[0])); 
+	glUniform3fv(program.getUniformLocation("lightPositionsEyeSpace"), numLights, glm::value_ptr(lightPositionsEyeSpace[0]));
+	glUniform3fv(program.getUniformLocation("lightColours"), numLights, glm::value_ptr(lightColours[0]));
 }
 
 // Draws a non-tesselated mesh using primitive types other than GL_PATCHES. Not compatible with meshes made of patches (at least without some editing)
@@ -94,14 +96,14 @@ void drawMesh(ShaderProgram& program, Mesh& mesh, glm::mat4& view) {
 	glUniform3fv(program.getUniformLocation("specularColour"), 1, glm::value_ptr(mesh.specColour));
 
     // Set whether a diffuse texture should be used, and if so, bind the texture to the correct texturing unit
-	glUniform1i(program.getUniformLocation("applyDiffuseTexture"), mesh.diffuseTexture.isValid()); 
+	glUniform1i(program.getUniformLocation("applyDiffuseTexture"), mesh.diffuseTexture.isValid());
 	if (mesh.diffuseTexture.isValid()) {
 		glActiveTexture(GL_TEXTURE0 + 0);
 		mesh.diffuseTexture.bind();
 	}
 
     // Set whether a specular texture should be used, and if so, bind the texture to the correct texturing unit
-	glUniform1i(program.getUniformLocation("applySpecularTexture"), mesh.specTexture.isValid()); 
+	glUniform1i(program.getUniformLocation("applySpecularTexture"), mesh.specTexture.isValid());
 	if (mesh.specTexture.isValid()) {
 		glActiveTexture(GL_TEXTURE0 + 1);
 		mesh.specTexture.bind();
@@ -125,9 +127,9 @@ void init() {
 
     // Load the tesselation shader program
     tessProgram = ShaderProgram({
-		{"../shaders/terrain.vert", GL_VERTEX_SHADER}, 
-		{"../shaders/terrain.cont", GL_TESS_CONTROL_SHADER}, 
-		{"../shaders/terrain.eval", GL_TESS_EVALUATION_SHADER}, 
+		{"../shaders/terrain.vert", GL_VERTEX_SHADER},
+		{"../shaders/terrain.cont", GL_TESS_CONTROL_SHADER},
+		{"../shaders/terrain.eval", GL_TESS_EVALUATION_SHADER},
 		{"../shaders/terrain.frag", GL_FRAGMENT_SHADER},
     });
 
@@ -141,19 +143,28 @@ void init() {
 	glUniform1f(tessProgram.getUniformLocation("distMin"), TESS_DIST_MIN);
 	glUniform1f(tessProgram.getUniformLocation("distMax"), TESS_DIST_MAX);
 
-	// Terrain Uniforms
+	// Terrain Generation Uniforms
 	glUniform1f(tessProgram.getUniformLocation("terrainMaxHeight"), TERRAIN_MAX_HEIGHT);
 	glUniform1f(tessProgram.getUniformLocation("terrainFrequency"), TERRAIN_FREQ);
 	glUniform1f(tessProgram.getUniformLocation("terrainAmplitude"), TERRAIN_AMP);
 
+	// Terrain Lighting Uniforms
+	glUniform1i(tessProgram.getUniformLocation("diffuseTexture"), 0);
+	glUniform1i(tessProgram.getUniformLocation("specularTexture"), 1);
+	glUniform1i(tessProgram.getUniformLocation("applyDiffuseTexture"), GL_TRUE);
+	glUniform1i(tessProgram.getUniformLocation("applySpecularTexture"), GL_FALSE);
+
     // Create terrain
     const float terrainSeed = rand();
- //    terrainMesh = createTerrain();
+    terrainMesh = createTerrain();
+
+    // Terrain Texturing
+    textures["grass"] = Texture("../assets/terrain_textures/grass/leafy_grass_diff_1k.jpg", GL_REPEAT);
 	// textures["heightMap"] = Texture("../assets/Terrain_hm_01.tga", GL_CLAMP_TO_EDGE);
 
 	// Load the basic (vertex-fragment) shader program
 	basicProgram = ShaderProgram({
-		{"../shaders/phong_blinn.vert", GL_VERTEX_SHADER}, 
+		{"../shaders/phong_blinn.vert", GL_VERTEX_SHADER},
 		{"../shaders/phong_blinn.frag", GL_FRAGMENT_SHADER}
 	});
 
@@ -161,7 +172,7 @@ void init() {
 	// Textures sampler locations for the basic (vertex-fragment only) program
 	glUniform1i(basicProgram.getUniformLocation("diffuseTexture"), 0); // diffuse texture sampler will use texturing unit 0
 	glUniform1i(basicProgram.getUniformLocation("specularTexture"), 1); // specular texture sampler will use texturing unit 1
-    
+
     textures["sky"] = Texture("../assets/solarsystemscope/8k_stars_milky_way.jpg", GL_CLAMP_TO_EDGE);
     meshes["skySphere"] = basic_objects::makeSphere(9000.0f, glm::vec3(1.0f), 16, 8, true);
     meshes["skySphere"].diffuseTexture = textures["sky"];
@@ -172,7 +183,7 @@ void init() {
 	meshes["earth"] = basic_objects::makeSphere(10.0f, glm::vec3(1.0f));
 	meshes["earth"].modelTransform = glm::translate(glm::mat4(1.0f), glm::vec3(-100.0f, 150.0f, -400.0f));
 	meshes["earth"].diffuseTexture = textures["earth_diff"];
-	meshes["earth"].specTexture = textures["earth_spec"]; 
+	meshes["earth"].specTexture = textures["earth_spec"];
 
 	lightPositions.push_back(glm::vec3(100.0f, 200.0f, 400.0f));
 	lightColours.push_back(glm::vec3(0.6f, 0.5625f, 0.4875f));
@@ -200,11 +211,11 @@ void display() {
 	basicProgram.setAsActiveProgram();
 	setCameraAndLightUniforms(basicProgram, window::proj, window::view, lightPositions, lightColours);
 	for (auto it = meshes.begin(); it != meshes.end(); it++) drawMesh(basicProgram, it->second, window::view);
-    
+
     tessProgram.setAsActiveProgram();
 	setCameraAndLightUniforms(tessProgram, window::proj, window::view, lightPositions, lightColours);
 	drawTerrain(tessProgram, terrainMesh);
-	
+
 	glutSwapBuffers();
 }
 
@@ -214,7 +225,7 @@ int main(int argc, char** argv) {
 	glutInitContextProfile(GLUT_CORE_PROFILE);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_DEPTH);
 	glutInitWindowSize(window::width, window::height);
-	glutCreateWindow("COSC422 Tesselation Lab");
+	glutCreateWindow("COSC422 Terrain Renderer");
 
 	if (glewInit() != GLEW_OK) {
 		std::cerr << "Unable to initialize GLEW  ...exiting." << std::endl;
@@ -227,6 +238,6 @@ int main(int argc, char** argv) {
 	init(); // Load shaders, textures, meshes, and models
 
 	glutDisplayFunc(display);
-	glutTimerFunc(POLL_DELAY, update, 0); 
+	glutTimerFunc(POLL_DELAY, update, 0);
 	glutMainLoop();
 }

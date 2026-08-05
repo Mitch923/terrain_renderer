@@ -153,3 +153,6 @@ CMakeUserPresets.json
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/cmake,clion,visualstudiocode
+
+# Zed config files
+.zed/
