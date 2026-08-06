@@ -26,9 +26,11 @@ const GLfloat TESS_DIST_MIN = 10.0f;
 const GLfloat TESS_DIST_MAX = 100.0f;
 
 // Terrain settings
-const GLfloat TERRAIN_MAX_HEIGHT = 5.0f;
+const GLfloat TERRAIN_HEIGHT_BOUND = 5.0f; // Terrain is bound to [-terrainHeightBound, terrainHeightBound]
 const GLfloat TERRAIN_FREQ = 0.005f;
 const GLfloat TERRAIN_AMP = 1.0f;
+const GLfloat WATER_LEVEL_NORM = 0.1f;// bottom 10% is water
+const GLfloat WATER_LEVEL = - (WATER_LEVEL_NORM * 2 * TERRAIN_HEIGHT_BOUND);
 
 float globalTime = 0.0f; // In seconds
 PatchMesh terrainMesh;
@@ -38,18 +40,23 @@ std::vector<glm::vec3> lightPositions;
 std::vector<glm::vec3> lightColours;
 ShaderProgram basicProgram, tessProgram;
 
-// Create a mesh that consists of a grid of 100 vertices arranged into square patches
-PatchMesh createTerrain(float xMin=-45.0f, float zMin=-90.0f, float xStep=10.0f, float zStep=10.0f) {
+// Create a mesh that consists of a grid of vertices arranged into square patches
+PatchMesh createTerrain(float xCenter=0.0f, float zCenter=0.0f,
+                        unsigned int xGridSize = 25, unsigned int zGridSize = 25,
+                        float xStep=10.0f, float zStep=10.0f) {
     PatchMesh m = PatchMesh(4); // 4 vertices per patch
-    for (unsigned int zIndex = 0; zIndex < 10; zIndex++) {
-        for (unsigned int xIndex = 0; xIndex < 10; xIndex++) {
-            m.addVert(glm::vec3(xMin + xIndex*xStep, 0.0f, zMin + zIndex*zStep));
+    for (unsigned int zIndex = 0; zIndex < zGridSize; zIndex++) {
+        for (unsigned int xIndex = 0; xIndex < xGridSize; xIndex++) {
+            float xOffset = xCenter + xIndex * xStep - (xGridSize * xStep) / 2.0f;
+            float zOffset = zCenter + zIndex * zStep - (zGridSize * zStep) / 2.0f;
+            m.addVert(glm::vec3(xOffset, 0.0f, zOffset));
+
             if (xIndex > 0 && zIndex > 0) {
                 m.addElements({
-                    (xIndex-1) + (zIndex-1)*10,
-                    (xIndex-1) +  zIndex   *10,
-                     xIndex    +  zIndex   *10,
-                     xIndex    + (zIndex-1)*10
+                    (xIndex-1) + (zIndex-1)*xGridSize,
+                    (xIndex-1) +  zIndex   *xGridSize,
+                     xIndex    +  zIndex   *xGridSize,
+                     xIndex    + (zIndex-1)*xGridSize
                 });
             }
         }
@@ -59,23 +66,20 @@ PatchMesh createTerrain(float xMin=-45.0f, float zMin=-90.0f, float xStep=10.0f,
 }
 
 void drawTerrain(ShaderProgram& program, PatchMesh& terrainMesh) {
+	// Shift the terrain grid to follow the camera for infinite terrain effect.
+	// The grid's original center is at (0, _, -45), so we offset by eyePos + that.
+	glm::vec3 terrainOffset = glm::vec3(window::eyePos.x, 0.0f, window::eyePos.z);
+	glUniform3fv(program.getUniformLocation("terrainOffset"), 1, glm::value_ptr(terrainOffset));
+
 	glBindVertexArray(terrainMesh.vaoID);
 	glPatchParameteri(GL_PATCH_VERTICES, terrainMesh.verticesPerPatch);
 
 	glUniform3fv(program.getUniformLocation("eyePos"), 1, glm::value_ptr(window::eyePos));
 	glUniform3fv(program.getUniformLocation("specularColour"), 1, glm::value_ptr(glm::vec3(1, 1, 1)));
 
-    // Bind the grass texture to texturing unit 0
-    glActiveTexture(GL_TEXTURE0);
-    textures["grass"].bind();
-    glActiveTexture(GL_TEXTURE1);
-    // Specular texture here
-    glActiveTexture(GL_TEXTURE2);
-    textures["rock"].bind();
-    glActiveTexture(GL_TEXTURE3);
-    textures["snow"].bind();
-    glActiveTexture(GL_TEXTURE4);
-    textures["sand"].bind();
+	// Bind diffuse texture
+	glActiveTexture(GL_TEXTURE0);
+	textures["grass"].bind();
 
     // Draw the terrain
 	glDrawElements(GL_PATCHES, terrainMesh.elements.size(), GL_UNSIGNED_INT, NULL);
@@ -145,16 +149,16 @@ void init() {
     tessProgram.setAsActiveProgram();
 	// Textures sampler locations for the tesselation program
 	glUniform3fv(tessProgram.getUniformLocation("eyePos"), 1, glm::value_ptr(window::eyePos));
-	glUniform1f(tessProgram.getUniformLocation("heightMap"), 0); // heightmap texture sampler will use texturing unit 0
 	glUniform1f(tessProgram.getUniformLocation("levelHigh"), TESS_LEVEL_HIGH);
 	glUniform1f(tessProgram.getUniformLocation("levelLow"), TESS_LEVEL_LOW);
 	glUniform1f(tessProgram.getUniformLocation("distMin"), TESS_DIST_MIN);
 	glUniform1f(tessProgram.getUniformLocation("distMax"), TESS_DIST_MAX);
 
 	// Terrain Generation Uniforms
-	glUniform1f(tessProgram.getUniformLocation("terrainMaxHeight"), TERRAIN_MAX_HEIGHT);
+	glUniform1f(tessProgram.getUniformLocation("terrainHeightBound"), TERRAIN_HEIGHT_BOUND);
 	glUniform1f(tessProgram.getUniformLocation("terrainFrequency"), TERRAIN_FREQ);
 	glUniform1f(tessProgram.getUniformLocation("terrainAmplitude"), TERRAIN_AMP);
+	glUniform1f(tessProgram.getUniformLocation("waterLevel"), WATER_LEVEL);
 
 	// Terrain Lighting Uniforms
 	glUniform1i(tessProgram.getUniformLocation("diffuseTexture"), 0);
@@ -162,6 +166,7 @@ void init() {
 	glUniform1i(tessProgram.getUniformLocation("rockTexture"), 2);
 	glUniform1i(tessProgram.getUniformLocation("snowTexture"), 3);
 	glUniform1i(tessProgram.getUniformLocation("sandTexture"), 4);
+	glUniform1i(tessProgram.getUniformLocation("waterTexture"), 5);
 	glUniform1i(tessProgram.getUniformLocation("applyDiffuseTexture"), GL_TRUE);
 	glUniform1i(tessProgram.getUniformLocation("applySpecularTexture"), GL_FALSE);
 
@@ -174,7 +179,30 @@ void init() {
     textures["snow"] = Texture("../assets/terrain_textures/snow/snow_02_diff_1k.jpg", GL_REPEAT);
     textures["sand"] = Texture("../assets/terrain_textures/sand/aerial_beach_01_diff_1k.jpg", GL_REPEAT);
     textures["rock"] = Texture("../assets/terrain_textures/rock/rocks_ground_06_diff_1k.jpg", GL_REPEAT);
-	// textures["heightMap"] = Texture("../assets/Terrain_hm_01.tga", GL_CLAMP_TO_EDGE);
+    textures["water"] = Texture("../assets/terrain_textures/water/water_0342.jpg", GL_REPEAT);
+
+    // Bind the textures to texturing units
+    glActiveTexture(GL_TEXTURE0);
+    textures["grass"].bind();
+    glActiveTexture(GL_TEXTURE1);
+    // Specular texture here
+    glActiveTexture(GL_TEXTURE2);
+    textures["rock"].bind();
+    glActiveTexture(GL_TEXTURE3);
+    textures["snow"].bind();
+    glActiveTexture(GL_TEXTURE4);
+    textures["sand"].bind();
+    glActiveTexture(GL_TEXTURE5);
+    textures["water"].bind();
+
+    glActiveTexture(GL_TEXTURE0);
+
+    // Save texturing units
+    textures["grass"].textureUnit = 0;
+    textures["rock"].textureUnit = 2;
+    textures["snow"].textureUnit = 3;
+    textures["sand"].textureUnit = 4;
+    textures["water"].textureUnit = 5;
 
 	// Load the basic (vertex-fragment) shader program
 	basicProgram = ShaderProgram({

@@ -20,6 +20,8 @@ std::string fixPathSlashes(std::string filePath) {
 
 class Texture {
     public:
+        GLuint textureUnit; // Useful for single binds
+
         Texture() {}
         // Load from file
         Texture(std::string filePath, GLuint wrapMode, bool flip_y=true, bool verbose=true) {

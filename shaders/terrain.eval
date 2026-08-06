@@ -4,12 +4,12 @@ layout(quads, equal_spacing, ccw) in;
 
 uniform mat4 viewMatrix;
 uniform mat4 projMatrix;
-uniform sampler2D heightMap;
 
 // Terrain settings
-uniform float terrainMaxHeight;
+uniform float terrainHeightBound; // Terrain is bound to [-terrainHeightBound, terrainHeightBound]
 uniform float terrainFrequency;
 uniform float terrainAmplitude;
+uniform float waterLevel; // Pre-calculated
 
 // Outputs for fragment shader
 out vec3 positionEyeSpace;
@@ -18,8 +18,7 @@ out vec3 diffuseColour;
 out vec2 texCoord;
 out float slope;
 out float heightNorm;
-
-const float xMin = -45.0, xMax = +45.0, zMin = 0.0, zMax = -90.0;
+out float waterLevelNorm;
 
 // https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
 
@@ -68,7 +67,7 @@ float getTerrainHeight(vec2 pos) {
         frequency *= 2.0;
     }
 
-    return (totalHeight / maxAmplitude) * terrainMaxHeight; // Bound to terrainMaxHeight
+    return (totalHeight / maxAmplitude) * terrainHeightBound; // Bound to terrainHeightBound
 }
 
 void main() {
@@ -81,33 +80,30 @@ void main() {
             + u * v * gl_in[2].gl_Position
             + (1-u) * v * gl_in[3].gl_Position;
 
-
-    vec2 uv = vec2((posn.x - xMin)/(xMax - xMin),
-                    (posn.z - zMin)/(zMax - zMin));
-
-    // float height = texture(heightMap, texCoord).r;
     float height = getTerrainHeight(posn.xz);
-    posn.y = height * 10.0;
+    // Clamp height for water level
+    float clampedHeight = clamp(height, waterLevel, terrainHeightBound);
 
+    posn.y = clampedHeight * 10.0;
 
     // Calculate Normal
     float eps = 0.5;
-    float hL = getTerrainHeight(posn.xz - vec2(eps, 0.0)) * 10.0;
-    float hR = getTerrainHeight(posn.xz + vec2(eps, 0.0)) * 10.0;
-    float hD = getTerrainHeight(posn.xz - vec2(0.0, eps)) * 10.0;
-    float hU = getTerrainHeight(posn.xz + vec2(0.0, eps)) * 10.0;
+    float hL = clamp(getTerrainHeight(posn.xz - vec2(eps, 0.0)), waterLevel, terrainHeightBound) * 10.0;
+    float hR = clamp(getTerrainHeight(posn.xz + vec2(eps, 0.0)), waterLevel, terrainHeightBound) * 10.0;
+    float hD = clamp(getTerrainHeight(posn.xz - vec2(0.0, eps)), waterLevel, terrainHeightBound) * 10.0;
+    float hU = clamp(getTerrainHeight(posn.xz + vec2(0.0, eps)), waterLevel, terrainHeightBound) * 10.0;
 
     vec3 tangentX = vec3(2.0 * eps, hR - hL, 0.0);
     vec3 tangentZ = vec3(0.0, hU - hD, 2.0 * eps);
     vec3 normalWorld = normalize(cross(tangentZ, tangentX));
 
-
     // Outputs for terrain.frag
     slope = 1.0 - normalWorld.y;
-    heightNorm = clamp(posn.y / (terrainMaxHeight * 10) * 0.5 + 0.5, 0.0, 1.0);
+    heightNorm = clamp((height * 10) / (terrainHeightBound * 10) * 0.5 + 0.5, 0.0, 1.0);
     normalEyeSpace = normalize(mat3(viewMatrix) * normalWorld);
     gl_Position = projMatrix * viewMatrix * posn;
     positionEyeSpace = vec3(viewMatrix * posn);
     diffuseColour = vec3(1.0, 1.0, 1.0);
-    texCoord = uv;
+    texCoord = posn.xz * 0.1; // World-space UVs for infinite texture tiling
+    waterLevelNorm = clamp(waterLevel / terrainHeightBound * 0.5 + 0.5, 0.0, 1.0);
 }

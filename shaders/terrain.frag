@@ -6,6 +6,7 @@ uniform sampler2D specularTexture;
 uniform sampler2D rockTexture;
 uniform sampler2D snowTexture;
 uniform sampler2D sandTexture;
+uniform sampler2D waterTexture;
 
 out vec4 fragColour;
 
@@ -15,6 +16,7 @@ in vec3 diffuseColour;
 in vec2 texCoord;
 in float slope;
 in float heightNorm;
+in float waterLevelNorm;
 
 uniform vec3 specularColour;
 uniform bool applyDiffuseTexture;
@@ -22,6 +24,8 @@ uniform bool applySpecularTexture;
 uniform uint numLights;
 uniform vec3 lightPositionsEyeSpace[MAX_LIGHTS];
 uniform vec3 lightColours[MAX_LIGHTS];
+
+
 
 const float shininess = 50.0;
 const float ambientFactor = 0.2;
@@ -32,17 +36,29 @@ void main() {
     vec3 grassColour = texture(diffuseTexture, texCoord).rgb;
     vec3 rockColour = texture(rockTexture, texCoord).rgb;
     vec3 snowColour = texture(snowTexture, texCoord).rgb;
+    vec3 sandColour = texture(sandTexture, texCoord).rgb;
+    vec3 waterColour = texture(waterTexture, texCoord * 2.0).rgb;
 
+    // Terrain coloring with height and slope blending
     float heightBlend = smoothstep(0.55, 0.75, heightNorm);
     float slopeBlend = smoothstep(0.25, 0.5, slope);
 
     vec3 baseColour = mix(grassColour, snowColour, heightBlend);
     vec3 terrainColour = mix(baseColour, rockColour, slopeBlend);
 
-    vec3 modulatedDiffuseColour = diffuseColour * terrainColour;
+    // Sand is blended out on steep slopes (cliffs) and only appears in the beach zone
+    float flatness = 1.0 - slope;  // 1.0 = flat, 0.0 = steep/cliff
+    float sandThreshold = waterLevelNorm + 0.02;  // Sand appears above water but stops at this height
+    float sandHeightBlend = smoothstep(waterLevelNorm, sandThreshold, heightNorm);
+
+    // Multiply by flatness to hide sand on steep terrain
+    float sandBlend = sandHeightBlend * flatness;
+    vec3 sandLayer = mix(sandColour, terrainColour, sandBlend);
+
+    vec3 modulatedDiffuseColour = (heightNorm <= waterLevelNorm) ? waterColour * diffuseColour * 3 : sandLayer * diffuseColour;
 
     float alpha = texture(diffuseTexture, texCoord).a;
-    if (alpha < alphaCutoff) discard; // This provides limited transparency support even when blending is disabled
+    //if (alpha < alphaCutoff) discard; // This provides limited transparency support even when blending is disabled
 
     // Modulate specular colour with specular texture if enabled
     vec3 modulatedSpecularColour = specularColour;
@@ -66,7 +82,7 @@ void main() {
         // Calculate h (the halfway vector, l+v)
         halfwayVecEyeSpace = normalize(lightVecEyeSpace + viewVecEyeSpace);
         // Calculate specular component of lighting: Ms*Ls*max(n.h, 0)**f
-        specular += modulatedSpecularColour * lightColours[lightIndex] * pow(max(dot(unitNormalEyeSpace, halfwayVecEyeSpace), 0.0), shininess);
+        if (heightNorm < waterLevelNorm) specular += modulatedSpecularColour * lightColours[lightIndex] * pow(max(dot(unitNormalEyeSpace, halfwayVecEyeSpace), 0.0), shininess);
     }
 
     fragColour = vec4(ambient + diffuse + specular, alpha);
