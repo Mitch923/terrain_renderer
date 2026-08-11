@@ -76,16 +76,20 @@ float getHeightWorldSpace(vec2 pos) {
     float h = getTerrainHeight(pos);
     float worldH = clamp(h, waterLevel, terrainHeightBound) * 10.0;
 
-    // Add animated waves on the water surface
-    if (h < waterLevel) {
-        float depth = (waterLevel - h) * 10.0; // world-space depth
-        // Amplitude increases as water gets shallower (surf breaking near beach)
-        float amp = 0.05 + 0.15 / max(depth, 0.5);
+    // Smooth transition zone: waves fade in/out over this height range (world-space units)
+    const float transitionWidth = 1.5;
+    float shoreDepth = (waterLevel - h) * 10.0; // positive = underwater, negative = above water
 
-        worldH += sin(pos.x * 0.8  + time * 2.0)   * amp;
-        worldH += sin(pos.y * 0.6  + time * 1.7)   * amp * 0.4;
-        worldH += sin((pos.x + pos.y) * 0.4 + time * 3.0) * amp * 0.25;
-    }
+    // Blend factor: ~1.0 when well underwater, ~0.0 when above shore line
+    float waveBlend = smoothstep(-transitionWidth, transitionWidth, shoreDepth);
+
+    // Depth for amplitude falloff -- clamp to avoid division issues near shore
+    float depthForAmp = max(shoreDepth, 0.5);
+    float amp = (0.05 + 0.15 / depthForAmp) * waveBlend;
+
+    worldH += sin(pos.x * 0.8  + time * 2.0)   * amp;
+    worldH += sin(pos.y * 0.6  + time * 1.7)   * amp * 0.4;
+    worldH += sin((pos.x + pos.y) * 0.4 + time * 3.0) * amp * 0.25;
 
     return worldH;
 }
@@ -103,7 +107,7 @@ void main() {
     float height = getTerrainHeight(posn.xz);
     posn.y = getHeightWorldSpace(posn.xz);
 
-    // Calculate Normal using the same helper — normals automatically include wave curvature
+    // Calculate Normal using the same helper -- normals automatically include wave curvature
     float eps = 0.5;
     float hL = getHeightWorldSpace(posn.xz - vec2(eps, 0.0));
     float hR = getHeightWorldSpace(posn.xz + vec2(eps, 0.0));
