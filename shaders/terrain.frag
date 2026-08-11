@@ -25,8 +25,6 @@ uniform uint numLights;
 uniform vec3 lightPositionsEyeSpace[MAX_LIGHTS];
 uniform vec3 lightColours[MAX_LIGHTS];
 
-
-
 const float shininess = 50.0;
 const float ambientFactor = 0.2;
 const float alphaCutoff = 0.01;
@@ -55,7 +53,19 @@ void main() {
     float sandBlend = sandHeightBlend * flatness;
     vec3 sandLayer = mix(sandColour, terrainColour, sandBlend);
 
-    vec3 modulatedDiffuseColour = (heightNorm <= waterLevelNorm) ? waterColour * diffuseColour * 3 : sandLayer * diffuseColour;
+    //blend toward a deep blue as depth increases
+    vec3 modulatedDiffuseColour;
+    if (heightNorm <= waterLevelNorm) {
+        float depth = waterLevelNorm - heightNorm;
+
+        // Adjust the divisor (0.15) to control how quickly the transition happens.
+        vec3 deepColour = vec3(0.0, 0.05, 0.2);
+        float blend = clamp(depth / 0.2, 0.0, 1.0);
+        vec3 shadedWater = mix(waterColour * diffuseColour * 3.0, deepColour, blend);
+        modulatedDiffuseColour = shadedWater;
+    } else {
+        modulatedDiffuseColour = sandLayer * diffuseColour;
+    }
 
     float alpha = texture(diffuseTexture, texCoord).a;
     //if (alpha < alphaCutoff) discard; // This provides limited transparency support even when blending is disabled
