@@ -10,6 +10,7 @@ uniform float terrainHeightBound; // Terrain is bound to [-terrainHeightBound, t
 uniform float terrainFrequency;
 uniform float terrainAmplitude;
 uniform float waterLevel; // Pre-calculated
+uniform float time;
 
 // Outputs for fragment shader
 out vec3 positionEyeSpace;
@@ -70,6 +71,25 @@ float getTerrainHeight(vec2 pos) {
     return (totalHeight / maxAmplitude) * terrainHeightBound; // Bound to terrainHeightBound
 }
 
+// Returns the final world-space Y height, including wave displacement for underwater points
+float getHeightWorldSpace(vec2 pos) {
+    float h = getTerrainHeight(pos);
+    float worldH = clamp(h, waterLevel, terrainHeightBound) * 10.0;
+
+    // Add animated waves on the water surface
+    if (h < waterLevel) {
+        float depth = (waterLevel - h) * 10.0; // world-space depth
+        // Amplitude increases as water gets shallower (surf breaking near beach)
+        float amp = 0.05 + 0.15 / max(depth, 0.5);
+
+        worldH += sin(pos.x * 0.8  + time * 2.0)   * amp;
+        worldH += sin(pos.y * 0.6  + time * 1.7)   * amp * 0.4;
+        worldH += sin((pos.x + pos.y) * 0.4 + time * 3.0) * amp * 0.25;
+    }
+
+    return worldH;
+}
+
 void main() {
     vec4 posn;
     float u = gl_TessCoord.x;
@@ -81,17 +101,14 @@ void main() {
             + (1-u) * v * gl_in[3].gl_Position;
 
     float height = getTerrainHeight(posn.xz);
-    // Clamp height for water level
-    float clampedHeight = clamp(height, waterLevel, terrainHeightBound);
+    posn.y = getHeightWorldSpace(posn.xz);
 
-    posn.y = clampedHeight * 10.0;
-
-    // Calculate Normal
+    // Calculate Normal using the same helper — normals automatically include wave curvature
     float eps = 0.5;
-    float hL = clamp(getTerrainHeight(posn.xz - vec2(eps, 0.0)), waterLevel, terrainHeightBound) * 10.0;
-    float hR = clamp(getTerrainHeight(posn.xz + vec2(eps, 0.0)), waterLevel, terrainHeightBound) * 10.0;
-    float hD = clamp(getTerrainHeight(posn.xz - vec2(0.0, eps)), waterLevel, terrainHeightBound) * 10.0;
-    float hU = clamp(getTerrainHeight(posn.xz + vec2(0.0, eps)), waterLevel, terrainHeightBound) * 10.0;
+    float hL = getHeightWorldSpace(posn.xz - vec2(eps, 0.0));
+    float hR = getHeightWorldSpace(posn.xz + vec2(eps, 0.0));
+    float hD = getHeightWorldSpace(posn.xz - vec2(0.0, eps));
+    float hU = getHeightWorldSpace(posn.xz + vec2(0.0, eps));
 
     vec3 tangentX = vec3(2.0 * eps, hR - hL, 0.0);
     vec3 tangentZ = vec3(0.0, hU - hD, 2.0 * eps);

@@ -77,6 +77,9 @@ void drawTerrain(ShaderProgram& program, PatchMesh& terrainMesh) {
 	glUniform3fv(program.getUniformLocation("eyePos"), 1, glm::value_ptr(window::eyePos));
 	glUniform3fv(program.getUniformLocation("specularColour"), 1, glm::value_ptr(glm::vec3(1, 1, 1)));
 
+	// Pass time for animated waves
+	glUniform1f(program.getUniformLocation("time"), globalTime);
+
 	// Bind diffuse texture
 	glActiveTexture(GL_TEXTURE0);
 	textures["grass"].bind();
