@@ -15,6 +15,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <random>
 
 const unsigned int MAX_LIGHTS = 10; // Don't attempt to change MAX_LIGHTS unless you will also change the corresponding constant in the fragment shader
 const int POLL_DELAY = 17; // In milliseconds
@@ -26,11 +27,14 @@ const GLfloat TESS_DIST_MIN = 10.0f;
 const GLfloat TESS_DIST_MAX = 100.0f;
 
 // Terrain settings
-const GLfloat TERRAIN_HEIGHT_BOUND = 5.0f; // Terrain is bound to [-terrainHeightBound, terrainHeightBound]
-const GLfloat TERRAIN_FREQ = 0.005f;
-const GLfloat TERRAIN_AMP = 1.0f;
-const GLfloat WATER_LEVEL_NORM = 0.1f;// bottom 10% is water
+const GLfloat TERRAIN_HEIGHT_BOUND = 50.0f; // Terrain is bound to [-terrainHeightBound, terrainHeightBound]
+const GLfloat TERRAIN_FREQ = 0.01f;
+const GLfloat TERRAIN_AMP = 2.0f;
+
+// Water Settings
+const GLfloat WATER_LEVEL_NORM = 0.1f; // bottom 10% is water
 const GLfloat WATER_LEVEL = - (WATER_LEVEL_NORM * 2 * TERRAIN_HEIGHT_BOUND);
+const GLfloat WATER_TRANSITION_WIDTH = 0.2f;
 
 float globalTime = 0.0f; // In seconds
 PatchMesh terrainMesh;
@@ -162,6 +166,16 @@ void init() {
 	glUniform1f(tessProgram.getUniformLocation("terrainFrequency"), TERRAIN_FREQ);
 	glUniform1f(tessProgram.getUniformLocation("terrainAmplitude"), TERRAIN_AMP);
 	glUniform1f(tessProgram.getUniformLocation("waterLevel"), WATER_LEVEL);
+	glUniform1f(tessProgram.getUniformLocation("transitionWidth"), WATER_TRANSITION_WIDTH);
+
+	// Seed terrain generation
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<uint32_t> distr(0, std::numeric_limits<uint32_t>::max());
+
+	uint32_t terrainSeed = distr(gen);
+	glUniform1ui(tessProgram.getUniformLocation("terrainSeed"), terrainSeed);
+
 
 	// Terrain Lighting Uniforms
 	glUniform1i(tessProgram.getUniformLocation("diffuseTexture"), 0);
@@ -173,8 +187,7 @@ void init() {
 	glUniform1i(tessProgram.getUniformLocation("applyDiffuseTexture"), GL_TRUE);
 	glUniform1i(tessProgram.getUniformLocation("applySpecularTexture"), GL_FALSE);
 
-    // Create terrain
-    const float terrainSeed = rand();
+    // Create terrain mesh
     terrainMesh = createTerrain();
 
     // Terrain Texturing

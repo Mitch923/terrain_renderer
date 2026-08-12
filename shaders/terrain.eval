@@ -11,6 +11,8 @@ uniform float terrainFrequency;
 uniform float terrainAmplitude;
 uniform float waterLevel; // Pre-calculated
 uniform float time;
+uniform float transitionWidth;
+uniform uint terrainSeed;
 
 // Outputs for fragment shader
 out vec3 positionEyeSpace;
@@ -21,36 +23,67 @@ out float slope;
 out float heightNorm;
 out float waterLevelNorm;
 
-// https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
+const float PI = 3.14159265358979;
 
-// Simplex Noise
-vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+// Infinite perlin noise based on hashing
+vec2 gradientHash(ivec2 pos, uint seed) {
+    // Multiply inputs with big primes (https://bigprimes.org/)
+    // Using primes minimizes patterns
+    uint h = uint(pos.x) * 646016809u + uint(pos.y) * 869240873u + seed * 406460479u;
 
-float snoise(vec2 v){
-    const vec4 C = vec4(0.211324865405187, 0.366025403784439,
-    -0.577350269189626, 0.024390243902439);
-    vec2 i  = floor(v + dot(v, C.yy) );
-    vec2 x0 = v -   i + dot(i, C.xx);
-    vec2 i1;
-    i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-    vec4 x12 = x0.xyxy + C.xxzz;
-    x12.xy -= i1;
-    i = mod(i, 289.0);
-    vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
-                      + i.x + vec3(0.0, i1.x, 1.0 ));
-    vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy),
-    dot(x12.zw,x12.zw)), 0.0);
-    m = m*m ;
-    m = m*m ;
-    vec3 x = 2.0 * fract(p * C.www) - 1.0;
-    vec3 h = abs(x) - 0.5;
-    vec3 ox = floor(x + 0.5);
-    vec3 a0 = x - ox;
-    m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
-    vec3 g;
-    g.x  = a0.x  * x0.x  + h.x  * x0.y;
-    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-    return 130.0 * dot(m, g);
+    // Use funky triple 32 scrambler from (https://www.shadertoy.com/view/WttXWX)
+    h ^= h >> 17u;
+    h *= 0xed5ad4bbu;
+    h ^= h >> 11u;
+    h *= 0xac4c1b51u;
+    h ^= h >> 15u;
+    h *= 0x31848babu;
+    h ^= h >> 14u;
+
+    // Convert back into a vec2 gradient vector
+    // Divide by max 32-bit int value
+    float angle = (float(h) / float(0xffffffffu)) * 2.0f * PI;
+    return vec2(cos(angle), sin(angle));
+}
+
+vec2 smootherStep(vec2 f) {
+    return f * f * f * (f * (f * 6.0 - 15.0) + 10.0); // Horner's method
+}
+
+float perlinNoise(vec2 coord) {
+    // Integer grid coordinates
+    ivec2 i = ivec2(floor(coord));
+
+    // Local position within integer grid
+    vec2 f = fract(coord);
+
+    // Random gradients for each corner
+    vec2 g00 = gradientHash(i + ivec2(0, 0), terrainSeed);
+    vec2 g01 = gradientHash(i + ivec2(0, 1), terrainSeed);
+    vec2 g10 = gradientHash(i + ivec2(1, 0), terrainSeed);
+    vec2 g11 = gradientHash(i + ivec2(1, 1), terrainSeed);
+
+    // Vectors from corners
+    vec2 v00 = f - vec2(0.0, 0.0);
+    vec2 v01 = f - vec2(0.0, 1.0);
+    vec2 v10 = f - vec2(1.0, 0.0);
+    vec2 v11 = f - vec2(1.0, 1.0);
+
+    // Dot products for corners and local vectors
+    float d00 = dot(g00, v00);
+    float d01 = dot(g01, v01);
+    float d10 = dot(g10, v10);
+    float d11 = dot(g11, v11);
+
+    vec2 u = smootherStep(f);
+
+    // Bilinear interp
+    float nx0 = mix(d00, d10, u.x);
+    float nx1 = mix(d01, d11, u.x);
+    float noiseVal = mix(nx0, nx1, u.y);
+
+    // Perlin outputs values between [-sqrt(N)/2, sqrt(N)/2] so normalise to [-1, 1]
+    return noiseVal * 1.41421356237; // sqrt(2)
 }
 
 float getTerrainHeight(vec2 pos) {
@@ -60,7 +93,7 @@ float getTerrainHeight(vec2 pos) {
     float maxAmplitude = 0.0;
 
     for (int i = 0; i < 5; i++) {
-        float noise = snoise(pos * frequency);
+        float noise = perlinNoise(pos * frequency);
         totalHeight += noise * amplitude;
         maxAmplitude += amplitude;
 
@@ -74,11 +107,10 @@ float getTerrainHeight(vec2 pos) {
 // Returns the final world-space Y height, including wave displacement for underwater points
 float getHeightWorldSpace(vec2 pos) {
     float h = getTerrainHeight(pos);
-    float worldH = clamp(h, waterLevel, terrainHeightBound) * 10.0;
+    float worldH = clamp(h, waterLevel, terrainHeightBound);
 
     // Smooth transition zone: waves fade in/out over this height range (world-space units)
-    const float transitionWidth = 1.5;
-    float shoreDepth = (waterLevel - h) * 10.0; // positive = underwater, negative = above water
+    float shoreDepth = (waterLevel - h); // positive = underwater, negative = above water
 
     // Blend factor: ~1.0 when well underwater, ~0.0 when above shore line
     float waveBlend = smoothstep(-transitionWidth, transitionWidth, shoreDepth);
@@ -87,8 +119,8 @@ float getHeightWorldSpace(vec2 pos) {
     float depthForAmp = max(shoreDepth, 0.5);
     float amp = (0.05 + 0.15 / depthForAmp) * waveBlend;
 
-    worldH += sin(pos.x * 0.8  + time * 2.0)   * amp;
-    worldH += sin(pos.y * 0.6  + time * 1.7)   * amp * 0.4;
+    worldH += sin(pos.x * 0.8  + time * 2.0) * amp;
+    worldH += sin(pos.y * 0.6  + time * 1.7) * amp * 0.4;
     worldH += sin((pos.x + pos.y) * 0.4 + time * 3.0) * amp * 0.25;
 
     return worldH;
