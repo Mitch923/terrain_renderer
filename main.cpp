@@ -11,6 +11,7 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
+#include <cmath>
 #include <GL/freeglut.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -20,13 +21,18 @@
 const unsigned int MAX_LIGHTS = 10; // Don't attempt to change MAX_LIGHTS unless you will also change the corresponding constant in the fragment shader
 const int POLL_DELAY = 17; // In milliseconds
 
+constexpr GLfloat RENDER_DISTANCE = 100.0f;
+
 // Tesselation LOD Settings
 const GLfloat TESS_LEVEL_HIGH = 100.0f;
-const GLfloat TESS_LEVEL_LOW = 30.0f;
-const GLfloat TESS_DIST_MIN = 10.0f;
-const GLfloat TESS_DIST_MAX = 100.0f;
+const GLfloat TESS_LEVEL_LOW = 10.0f;
+const GLfloat TESS_DIST_MIN = 10.0f; // Distance at which high detail kicks in (camera-relative)
+constexpr float TESS_DIST_RANGE_MULT = 1.0f;     // How far beyond render distance the low-detail zone begins
+const GLfloat TESS_DIST_MAX = RENDER_DISTANCE * TESS_DIST_RANGE_MULT;
 
 // Terrain settings
+constexpr float TERRAIN_STEP = 10.0f; // Fixed spacing between adjacent vertices (world units)
+constexpr int GRID_SCALE_FACTOR = 3; // Grid extends GRID_SCALE_FACTOR * RENDER_DISTANCE in each direction
 const GLfloat TERRAIN_HEIGHT_BOUND = 50.0f; // Terrain is bound to [-terrainHeightBound, terrainHeightBound]
 const GLfloat TERRAIN_FREQ = 0.01f;
 const GLfloat TERRAIN_AMP = 2.0f;
@@ -36,6 +42,21 @@ const GLfloat WATER_LEVEL_NORM = 0.1f; // bottom 10% is water
 const GLfloat WATER_LEVEL = - (WATER_LEVEL_NORM * 2 * TERRAIN_HEIGHT_BOUND);
 const GLfloat WATER_TRANSITION_WIDTH = 0.2f;
 
+// Tree settings
+constexpr float TREE_QUAD_SIZE = 6.0f;     // Half-extent of each cross-billboard face (world units)
+constexpr int NUM_TREE_TEXTURES = 3;       // Crabapple / MapleFall / Pine
+constexpr unsigned int MAX_TREES = 4096;     // Upper bound on tree count across all textures
+
+// Tree density: fraction of valid-grid cells that become a tree. Larger = denser forest.
+const float TREE_DENSITY = 0.75f;
+constexpr float MIN_TREE_SEPARATION = 7.0f;   // Spacing between candidate spawn positions
+constexpr float TREE_HEIGHT_OFFSET = 1.5f;    // Lift trees above ground by this amount
+
+// Per-texture density multipliers — allows sparse snow/desert variants later if desired.
+const float TREE_DENSITY_PER_TEXTURE[NUM_TREE_TEXTURES] = { TREE_DENSITY, TREE_DENSITY, TREE_DENSITY };
+
+struct TreePlacement { glm::vec3 worldPos; int textureIndex; };
+
 float globalTime = 0.0f; // In seconds
 PatchMesh terrainMesh;
 std::unordered_map<std::string, Mesh> meshes;
@@ -44,10 +65,15 @@ std::vector<glm::vec3> lightPositions;
 std::vector<glm::vec3> lightColours;
 ShaderProgram basicProgram, tessProgram;
 
+inline constexpr int computeGridSize(float renderDistance, float step) {
+    return static_cast<int>(renderDistance * GRID_SCALE_FACTOR / step) + 1;
+}
+
 // Create a mesh that consists of a grid of vertices arranged into square patches
 PatchMesh createTerrain(float xCenter=0.0f, float zCenter=0.0f,
-                        unsigned int xGridSize = 25, unsigned int zGridSize = 25,
-                        float xStep=10.0f, float zStep=10.0f) {
+                        unsigned int xGridSize = computeGridSize(RENDER_DISTANCE, TERRAIN_STEP),
+                        unsigned int zGridSize = computeGridSize(RENDER_DISTANCE, TERRAIN_STEP),
+                        float xStep=TERRAIN_STEP, float zStep=TERRAIN_STEP) {
     PatchMesh m = PatchMesh(4); // 4 vertices per patch
     for (unsigned int zIndex = 0; zIndex < zGridSize; zIndex++) {
         for (unsigned int xIndex = 0; xIndex < xGridSize; xIndex++) {

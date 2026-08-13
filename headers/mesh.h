@@ -22,10 +22,15 @@ Notable public attributes that may be useful to edit for a Mesh object:
 #ifndef MESH_H
 #define MESH_H
 
+#include <GL/glew.h>
+#include <GL/gl.h>
+
 #include <vector>
 #include <unordered_map>
 #include <GL/freeglut.h>
 #include <glm/glm.hpp>
+
+#include "texture.h"
 
 // Vertex struct for packing into a VBO
 struct Vertex {
@@ -49,7 +54,7 @@ class Mesh {
         glm::vec3 specColour = glm::vec3(1.0f);
         glm::mat4 modelTransform = glm::mat4(1.0f);
         Texture diffuseTexture, specTexture;
-        
+
         // Used only for rigged meshes:
         std::unordered_map<std::string, unsigned int> boneIndices; // A mapping of Assimp scene graph node names -> bone indices in this mesh
         std::unordered_map<unsigned int, glm::mat4> boneOffsetMatrices; // A mapping of bone index -> bone offset matrix
@@ -65,10 +70,10 @@ class Mesh {
             glBindVertexArray(vaoID);
 
             // Positions
-            glBindBuffer(GL_ARRAY_BUFFER, vboID); 
+            glBindBuffer(GL_ARRAY_BUFFER, vboID);
             glEnableVertexAttribArray(0); //enable location 0 to be accessed as a per-vertex attribute within the vertex shader
             // Set vertex location 0 to point to VBO 0 (currently bound), 3 floats per vertex, step size 76 bytes (sizeof Vertex), offset 0*4 bytes
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position)); 
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
 
             // Normals
             glEnableVertexAttribArray(1);
