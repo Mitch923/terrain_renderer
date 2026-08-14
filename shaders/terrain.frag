@@ -77,7 +77,8 @@ void main() {
 
     vec3 ambient, diffuse = vec3(0.0), specular = vec3(0.0);
     // Calculate ambient component of lighting: Ma*La. Here we just use the diffuse colour (Md) as Ma, and 0.2 in place of light ambient colour La
-    ambient = modulatedDiffuseColour * ambientFactor;
+    vec3 snowAmbientFactor = mix(vec3(1, 1, 1), vec3(3, 3, 3), heightBlend);
+    ambient = modulatedDiffuseColour * ambientFactor * snowAmbientFactor;
 
     vec3 unitNormalEyeSpace = normalize(normalEyeSpace);
     vec3 viewVecEyeSpace = normalize(-positionEyeSpace);
@@ -93,6 +94,7 @@ void main() {
         halfwayVecEyeSpace = normalize(lightVecEyeSpace + viewVecEyeSpace);
         // Calculate specular component of lighting: Ms*Ls*max(n.h, 0)**f
         if (heightNorm < waterLevelNorm) specular += modulatedSpecularColour * lightColours[lightIndex] * pow(max(dot(unitNormalEyeSpace, halfwayVecEyeSpace), 0.0), shininess);
+        specular += modulatedSpecularColour * lightColours[lightIndex] * pow(max(dot(unitNormalEyeSpace, halfwayVecEyeSpace), 0.0), shininess) * heightBlend * 0.25;
     }
 
     fragColour = vec4(ambient + diffuse + specular, alpha);

@@ -156,3 +156,5 @@ CMakeUserPresets.json
 
 # Zed config files
 .zed/
+
+build/

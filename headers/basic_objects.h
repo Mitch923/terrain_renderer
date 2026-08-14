@@ -112,6 +112,41 @@ namespace basic_objects {
 
         return sphere;
     }
+
+    // Creates a cross-billboard tree mesh: two perpendicular quads that always face the viewer from any angle.
+    // Quad 1 faces along +X axis (visible when viewing from ±Z directions)
+    // Quad 2 faces along +Z axis (visible when viewing from ±X directions)
+    Mesh makeCrossBillboardTree(float quadSize, glm::vec3 colour) {
+        Mesh tree = Mesh(GL_TRIANGLES);
+
+        float halfHeight = quadSize * 1.5f; // Tree is taller than wide
+        float halfWidth = quadSize;
+
+        // Quad 1: facing along +Z axis (normal in +Z direction)
+        // Vertices ordered for proper winding (counter-clockwise when viewed from front)
+        tree.addVert(glm::vec3(-halfWidth, -halfHeight, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), colour, glm::vec2(0.0f, 0.0f)); // bottom-left
+        tree.addVert(glm::vec3(halfWidth, -halfHeight, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), colour, glm::vec2(1.0f, 0.0f)); // bottom-right
+        tree.addVert(glm::vec3(halfWidth, halfHeight, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), colour, glm::vec2(1.0f, 1.0f)); // top-right
+        tree.addVert(glm::vec3(-halfWidth, halfHeight, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), colour, glm::vec2(0.0f, 1.0f)); // top-left
+
+        // Quad 2: facing along +X axis (normal in +X direction)
+        tree.addVert(glm::vec3(0.0f, -halfHeight, -halfWidth), glm::vec3(1.0f, 0.0f, 0.0f), colour, glm::vec2(0.0f, 0.0f)); // bottom-left
+        tree.addVert(glm::vec3(0.0f, -halfHeight, halfWidth), glm::vec3(1.0f, 0.0f, 0.0f), colour, glm::vec2(1.0f, 0.0f)); // bottom-right
+        tree.addVert(glm::vec3(0.0f, halfHeight, halfWidth), glm::vec3(1.0f, 0.0f, 0.0f), colour, glm::vec2(1.0f, 1.0f)); // top-right
+        tree.addVert(glm::vec3(0.0f, halfHeight, -halfWidth), glm::vec3(1.0f, 0.0f, 0.0f), colour, glm::vec2(0.0f, 1.0f)); // top-left
+
+        // Add triangle indices for Quad 1 (two triangles)
+        tree.addElements({0, 1, 2});
+        tree.addElements({0, 2, 3});
+
+        // Add triangle indices for Quad 2 (two triangles)
+        tree.addElements({4, 5, 6});
+        tree.addElements({4, 6, 7});
+
+        tree.updateBuffers();
+
+        return tree;
+    }
 }
 
 #endif // BASIC_OBJECTS_H

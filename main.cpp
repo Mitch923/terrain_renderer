@@ -7,6 +7,7 @@
 #include "headers/patch_mesh.h"
 #include "headers/window.h"
 #include "headers/basic_objects.h"
+#include "headers/terrain_noise.h"
 
 #include <iostream>
 #include <vector>
@@ -25,17 +26,17 @@ constexpr GLfloat RENDER_DISTANCE = 100.0f;
 
 // Tesselation LOD Settings
 const GLfloat TESS_LEVEL_HIGH = 100.0f;
-const GLfloat TESS_LEVEL_LOW = 10.0f;
-const GLfloat TESS_DIST_MIN = 10.0f; // Distance at which high detail kicks in (camera-relative)
+const GLfloat TESS_LEVEL_LOW = 30.0f;
+const GLfloat TESS_DIST_MIN = 30.0f; // Distance at which high detail kicks in (camera-relative)
 constexpr float TESS_DIST_RANGE_MULT = 1.0f;     // How far beyond render distance the low-detail zone begins
 const GLfloat TESS_DIST_MAX = RENDER_DISTANCE * TESS_DIST_RANGE_MULT;
 
 // Terrain settings
 constexpr float TERRAIN_STEP = 10.0f; // Fixed spacing between adjacent vertices (world units)
 constexpr int GRID_SCALE_FACTOR = 3; // Grid extends GRID_SCALE_FACTOR * RENDER_DISTANCE in each direction
-const GLfloat TERRAIN_HEIGHT_BOUND = 50.0f; // Terrain is bound to [-terrainHeightBound, terrainHeightBound]
-const GLfloat TERRAIN_FREQ = 0.01f;
-const GLfloat TERRAIN_AMP = 2.0f;
+const GLfloat TERRAIN_HEIGHT_BOUND = 100.0f; // Terrain is bound to [-terrainHeightBound, terrainHeightBound]
+const GLfloat TERRAIN_FREQ = 0.009f;
+const GLfloat TERRAIN_AMP = 5.0f;
 
 // Water Settings
 const GLfloat WATER_LEVEL_NORM = 0.1f; // bottom 10% is water
@@ -223,6 +224,11 @@ void init() {
     textures["rock"] = Texture("../assets/terrain_textures/rock/rocks_ground_06_diff_1k.jpg", GL_REPEAT);
     textures["water"] = Texture("../assets/terrain_textures/water/water_0342.jpg", GL_REPEAT);
 
+    // Tree Texturing
+    textures["tree_crabapple"] = Texture("../assets/tree_textures/Crabapple_baseColor.png", GL_CLAMP_TO_EDGE, true, false);
+    textures["tree_maplefall"] = Texture("../assets/tree_textures/MapleFall_baseColor.png", GL_CLAMP_TO_EDGE, true, false);
+    textures["tree_pine"] = Texture("../assets/tree_textures/Pine_baseColor.png", GL_CLAMP_TO_EDGE, true, false);
+
     // Bind the textures to texturing units
     glActiveTexture(GL_TEXTURE0);
     textures["grass"].bind();
@@ -237,6 +243,14 @@ void init() {
     glActiveTexture(GL_TEXTURE5);
     textures["water"].bind();
 
+    // Bind tree textures
+    glActiveTexture(GL_TEXTURE6);
+    textures["tree_crabapple"].bind();
+    glActiveTexture(GL_TEXTURE7);
+    textures["tree_maplefall"].bind();
+    glActiveTexture(GL_TEXTURE8);
+    textures["tree_pine"].bind();
+
     glActiveTexture(GL_TEXTURE0);
 
     // Save texturing units
@@ -245,6 +259,9 @@ void init() {
     textures["snow"].textureUnit = 3;
     textures["sand"].textureUnit = 4;
     textures["water"].textureUnit = 5;
+    textures["tree_crabapple"].textureUnit = 6;
+    textures["tree_maplefall"].textureUnit = 7;
+    textures["tree_pine"].textureUnit = 8;
 
 	// Load the basic (vertex-fragment) shader program
 	basicProgram = ShaderProgram({
