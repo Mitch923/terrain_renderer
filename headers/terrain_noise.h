@@ -60,9 +60,9 @@ namespace terrain_noise {
         glm::vec2 u = smootherStep(f);
 
         // Bilinear interpolation
-        float nx0 = mix(d00, d10, u.x);
-        float nx1 = mix(d01, d11, u.x);
-        float noiseVal = mix(nx0, nx1, u.y);
+        float nx0 = glm::mix(d00, d10, u.x);
+        float nx1 = glm::mix(d01, d11, u.x);
+        float noiseVal = glm::mix(nx0, nx1, u.y);
 
         // Normalize to [-1, 1] range (sqrt(2) normalization factor)
         return noiseVal * 1.41421356237f;

@@ -49,6 +49,8 @@ class Mesh {
         GLuint vboID, eboID;
     public:
         GLuint vaoID, primitiveType, hint = GL_STATIC_DRAW;
+        GLuint getVboID() const { return vboID; }
+        GLuint getEboID() const { return eboID; }
         std::vector<Vertex> verts;
         std::vector<unsigned int> elements;
         glm::vec3 specColour = glm::vec3(1.0f);

@@ -8,11 +8,14 @@
 #include "headers/window.h"
 #include "headers/basic_objects.h"
 #include "headers/terrain_noise.h"
+#include "headers/tree_texture_array.h"
+#include "headers/tree.h"
 
 #include <iostream>
 #include <vector>
 #include <unordered_map>
 #include <cmath>
+#include <limits>
 #include <GL/freeglut.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -33,7 +36,7 @@ const GLfloat TESS_DIST_MAX = RENDER_DISTANCE * TESS_DIST_RANGE_MULT;
 
 // Terrain settings
 constexpr float TERRAIN_STEP = 10.0f; // Fixed spacing between adjacent vertices (world units)
-constexpr int GRID_SCALE_FACTOR = 3; // Grid extends GRID_SCALE_FACTOR * RENDER_DISTANCE in each direction
+constexpr float GRID_SCALE_FACTOR = 2.0f; // Grid extends GRID_SCALE_FACTOR * RENDER_DISTANCE in each direction
 const GLfloat TERRAIN_HEIGHT_BOUND = 100.0f; // Terrain is bound to [-terrainHeightBound, terrainHeightBound]
 const GLfloat TERRAIN_FREQ = 0.009f;
 const GLfloat TERRAIN_AMP = 5.0f;
@@ -43,28 +46,15 @@ const GLfloat WATER_LEVEL_NORM = 0.1f; // bottom 10% is water
 const GLfloat WATER_LEVEL = - (WATER_LEVEL_NORM * 2 * TERRAIN_HEIGHT_BOUND);
 const GLfloat WATER_TRANSITION_WIDTH = 0.2f;
 
-// Tree settings
-constexpr float TREE_QUAD_SIZE = 6.0f;     // Half-extent of each cross-billboard face (world units)
-constexpr int NUM_TREE_TEXTURES = 3;       // Crabapple / MapleFall / Pine
-constexpr unsigned int MAX_TREES = 4096;     // Upper bound on tree count across all textures
-
-// Tree density: fraction of valid-grid cells that become a tree. Larger = denser forest.
-const float TREE_DENSITY = 0.75f;
-constexpr float MIN_TREE_SEPARATION = 7.0f;   // Spacing between candidate spawn positions
-constexpr float TREE_HEIGHT_OFFSET = 1.5f;    // Lift trees above ground by this amount
-
-// Per-texture density multipliers — allows sparse snow/desert variants later if desired.
-const float TREE_DENSITY_PER_TEXTURE[NUM_TREE_TEXTURES] = { TREE_DENSITY, TREE_DENSITY, TREE_DENSITY };
-
-struct TreePlacement { glm::vec3 worldPos; int textureIndex; };
-
 float globalTime = 0.0f; // In seconds
 PatchMesh terrainMesh;
 std::unordered_map<std::string, Mesh> meshes;
 std::unordered_map<std::string, Texture> textures;
 std::vector<glm::vec3> lightPositions;
 std::vector<glm::vec3> lightColours;
-ShaderProgram basicProgram, tessProgram;
+ShaderProgram basicProgram, tessProgram, treeInstancedProgram;
+Mesh treeBillboard;
+uint32_t terrainSeed = 0;
 
 inline constexpr int computeGridSize(float renderDistance, float step) {
     return static_cast<int>(renderDistance * GRID_SCALE_FACTOR / step) + 1;
@@ -161,6 +151,8 @@ void drawMesh(ShaderProgram& program, Mesh& mesh, glm::mat4& view) {
 	else 						  glDrawArrays(mesh.primitiveType, 0, mesh.verts.size());
 }
 
+
+
 // Setup GL state, load and compile shaders, load required data
 void init() {
 	// Initialize OpenGL state
@@ -200,7 +192,7 @@ void init() {
 	std::mt19937 gen(rd());
 	std::uniform_int_distribution<uint32_t> distr(0, std::numeric_limits<uint32_t>::max());
 
-	uint32_t terrainSeed = distr(gen);
+	terrainSeed = distr(gen);
 	glUniform1ui(tessProgram.getUniformLocation("terrainSeed"), terrainSeed);
 
 
@@ -216,6 +208,7 @@ void init() {
 
     // Create terrain mesh
     terrainMesh = createTerrain();
+    tree::init(textures, treeBillboard);
 
     // Terrain Texturing
     textures["grass"] = Texture("../assets/terrain_textures/grass/leafy_grass_diff_1k.jpg", GL_REPEAT);
@@ -223,11 +216,6 @@ void init() {
     textures["sand"] = Texture("../assets/terrain_textures/sand/aerial_beach_01_diff_1k.jpg", GL_REPEAT);
     textures["rock"] = Texture("../assets/terrain_textures/rock/rocks_ground_06_diff_1k.jpg", GL_REPEAT);
     textures["water"] = Texture("../assets/terrain_textures/water/water_0342.jpg", GL_REPEAT);
-
-    // Tree Texturing
-    textures["tree_crabapple"] = Texture("../assets/tree_textures/Crabapple_baseColor.png", GL_CLAMP_TO_EDGE, true, false);
-    textures["tree_maplefall"] = Texture("../assets/tree_textures/MapleFall_baseColor.png", GL_CLAMP_TO_EDGE, true, false);
-    textures["tree_pine"] = Texture("../assets/tree_textures/Pine_baseColor.png", GL_CLAMP_TO_EDGE, true, false);
 
     // Bind the textures to texturing units
     glActiveTexture(GL_TEXTURE0);
@@ -243,14 +231,6 @@ void init() {
     glActiveTexture(GL_TEXTURE5);
     textures["water"].bind();
 
-    // Bind tree textures
-    glActiveTexture(GL_TEXTURE6);
-    textures["tree_crabapple"].bind();
-    glActiveTexture(GL_TEXTURE7);
-    textures["tree_maplefall"].bind();
-    glActiveTexture(GL_TEXTURE8);
-    textures["tree_pine"].bind();
-
     glActiveTexture(GL_TEXTURE0);
 
     // Save texturing units
@@ -259,9 +239,6 @@ void init() {
     textures["snow"].textureUnit = 3;
     textures["sand"].textureUnit = 4;
     textures["water"].textureUnit = 5;
-    textures["tree_crabapple"].textureUnit = 6;
-    textures["tree_maplefall"].textureUnit = 7;
-    textures["tree_pine"].textureUnit = 8;
 
 	// Load the basic (vertex-fragment) shader program
 	basicProgram = ShaderProgram({
@@ -273,6 +250,16 @@ void init() {
 	// Textures sampler locations for the basic (vertex-fragment only) program
 	glUniform1i(basicProgram.getUniformLocation("diffuseTexture"), 0); // diffuse texture sampler will use texturing unit 0
 	glUniform1i(basicProgram.getUniformLocation("specularTexture"), 1); // specular texture sampler will use texturing unit 1
+
+	// Load the instanced tree shader program (vertex-fragment only, with instancing support)
+	treeInstancedProgram = ShaderProgram({
+		{"../shaders/tree_instanced.vert", GL_VERTEX_SHADER},
+		{"../shaders/tree_instanced.frag", GL_FRAGMENT_SHADER}
+	});
+
+	// Set texture array sampler uniform location for the tree instanced program
+	treeInstancedProgram.setAsActiveProgram();
+	glUniform1i(treeInstancedProgram.getUniformLocation("treeTextures"), 0); // texture unit 0
 
     textures["sky"] = Texture("../assets/solarsystemscope/8k_stars_milky_way.jpg", GL_CLAMP_TO_EDGE);
     meshes["skySphere"] = basic_objects::makeSphere(9000.0f, glm::vec3(1.0f), 16, 8, true);
@@ -316,6 +303,12 @@ void display() {
     tessProgram.setAsActiveProgram();
 	setCameraAndLightUniforms(tessProgram, window::proj, window::view, lightPositions, lightColours);
 	drawTerrain(tessProgram, terrainMesh);
+
+    tree::updatePlacements(RENDER_DISTANCE, terrainSeed);
+    tree::updateInstanceBuffer();
+    treeInstancedProgram.setAsActiveProgram();
+    setCameraAndLightUniforms(treeInstancedProgram, window::proj, window::view, lightPositions, lightColours);
+    tree::drawTrees(window::view, treeInstancedProgram, treeBillboard, tree::treeTextureArray);
 
 	glutSwapBuffers();
 }
