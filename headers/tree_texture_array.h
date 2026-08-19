@@ -23,28 +23,29 @@ public:
     GLuint textureID;
     GLint uniformLocation;
 
-    TreeTextureArray() : textureID(0), uniformLocation(-1) {}
+    TreeTextureArray() : textureID(0), uniformLocation(-1) {
+    }
 
     // Create a 2D texture array from a list of texture files
-    void createFromArray(const std::vector<std::string>& texturePaths, GLuint wrapMode = GL_CLAMP_TO_EDGE) {
+    void createFromArray(const std::vector<std::string> &texturePaths, GLuint wrapMode = GL_CLAMP_TO_EDGE) {
         glGenTextures(1, &textureID);
         glBindTexture(GL_TEXTURE_2D_ARRAY, textureID);
 
         GLint maxArrayLayers;
-        glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &maxArrayLayers);
-        if (maxArrayLayers < (int)texturePaths.size()) {
+        glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &maxArrayLayers);
+        if (maxArrayLayers < (int) texturePaths.size()) {
             std::cerr << "Warning: GPU supports only " << maxArrayLayers
-                      << " 2D array layers, but " << texturePaths.size() << " were requested." << std::endl;
+                    << " 2D array layers, but " << texturePaths.size() << " were requested." << std::endl;
         }
 
         int texWidth = 0, texHeight = 0, channels = 0;
-        std::vector<stbi_uc*> imageData(texturePaths.size());
+        std::vector<stbi_uc *> imageData(texturePaths.size());
 
         // Load all images first to determine dimensions
         for (size_t i = 0; i < texturePaths.size(); i++) {
             std::string path = fixPathSlashes(texturePaths[i]);
             stbi_set_flip_vertically_on_load(true);
-            imageData[i] = stbi_load(path.c_str(), &texWidth, &texHeight, &channels, 0);
+            imageData[i] = stbi_load(path.c_str(), &texWidth, &texHeight, &channels, STBI_rgb_alpha);
             if (!imageData[i]) {
                 std::cerr << "Failed to load texture for array: " << path << std::endl;
             }
@@ -53,18 +54,23 @@ public:
         // Determine internal format based on channels (use first valid image)
         GLint internalFormat = GL_RGBA8;
         GLint format = GL_RGBA;
-        if (channels == 3) { internalFormat = GL_RGB8; format = GL_RGB; }
-        else if (channels == 1) { internalFormat = GL_R8; format = GL_RED; }
+        if (channels == 3) {
+            internalFormat = GL_RGB8;
+            format = GL_RGB;
+        } else if (channels == 1) {
+            internalFormat = GL_R8;
+            format = GL_RED;
+        }
 
         // Allocate the 2D array and upload each layer
         glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, internalFormat,
-                     texWidth, texHeight, (GLint)texturePaths.size(),
+                     texWidth, texHeight, (GLint) texturePaths.size(),
                      0, format, GL_UNSIGNED_BYTE, nullptr);
 
         for (size_t i = 0; i < texturePaths.size(); i++) {
             if (imageData[i]) {
                 glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0,
-                                0, 0, (GLint)i,
+                                0, 0, (GLint) i,
                                 texWidth, texHeight, 1,
                                 format, GL_UNSIGNED_BYTE, imageData[i]);
             }
@@ -81,7 +87,7 @@ public:
         glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
 
         // Free loaded image data
-        for (auto* data : imageData) {
+        for (auto *data: imageData) {
             stbi_image_free(data);
         }
 
@@ -95,9 +101,9 @@ public:
     }
 
     // Set the sampler uniform on a shader program to the given texture unit
-    void setUniform(ShaderProgram& program, const std::string& uniformName, GLuint textureUnit = 0) {
+    void setUniform(ShaderProgram &program, const std::string &uniformName, GLuint textureUnit = 0) {
         program.setAsActiveProgram();
-        glUniform1i(program.getUniformLocation(uniformName), (GLint)textureUnit);
+        glUniform1i(program.getUniformLocation(uniformName), (GLint) textureUnit);
         uniformLocation = program.getUniformLocation(uniformName);
     }
 

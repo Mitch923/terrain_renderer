@@ -1,4 +1,6 @@
-# Sources:
+# COSC422 Terrain Renderer
+
+### Sources:
 - [Grass Texture](https://polyhaven.com/a/leafy_grass)
 - [Snow Texture](https://polyhaven.com/a/snow_02)
 - [Rock Texture](https://polyhaven.com/a/rocks_ground_06)

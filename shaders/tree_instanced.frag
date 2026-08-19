@@ -21,7 +21,6 @@ const float shininess = 50.0;
 const float ambientFactor = 0.2;
 const float alphaCutoff = 0.01;
 
-
 void main() {
     // Sample the tree texture from the correct layer based on instance texture index
     // textureIndex is passed as float but converted to int for array indexing
@@ -36,7 +35,7 @@ void main() {
     // Modulate specular colour with specular texture if enabled
     vec3 modulatedSpecularColour = specularColour;
     if (texture(specularTexture, texCoord).a > alphaCutoff)
-        modulatedSpecularColour *= texture(specularTexture, texCoord).rgb;
+    modulatedSpecularColour *= texture(specularTexture, texCoord).rgb;
 
     vec3 ambient, diffuse = vec3(0.0), specular = vec3(0.0);
 
@@ -54,11 +53,11 @@ void main() {
         // Diffuse component: Md * Ld * max(n.l, 0)
         diffuse += modulatedDiffuseColour * lightColours[lightIndex] * max(dot(unitNormalEyeSpace, lightVecEyeSpace), 0.0);
 
-        // Halfway vector for Phong-Blinn specular
-        halfwayVecEyeSpace = normalize(lightVecEyeSpace + viewVecEyeSpace);
+        // // Halfway vector for Phong-Blinn specular
+        // halfwayVecEyeSpace = normalize(lightVecEyeSpace + viewVecEyeSpace);
 
-        // Specular component: Ms * Ls * max(n.h, 0)^f
-        specular += modulatedSpecularColour * lightColours[lightIndex] * pow(max(dot(unitNormalEyeSpace, halfwayVecEyeSpace), 0.0), shininess);
+        // // Specular component: Ms * Ls * max(n.h, 0)^f
+        // specular += modulatedSpecularColour * lightColours[lightIndex] * pow(max(dot(unitNormalEyeSpace, halfwayVecEyeSpace), 0.0), shininess);
     }
 
     fragColour = vec4(ambient + diffuse + specular, treeTextureColour.a);

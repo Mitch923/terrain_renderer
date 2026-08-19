@@ -113,9 +113,7 @@ namespace basic_objects {
         return sphere;
     }
 
-    // Creates a cross-billboard tree mesh: two perpendicular quads that always face the viewer from any angle.
-    // Quad 1 faces along +X axis (visible when viewing from ±Z directions)
-    // Quad 2 faces along +Z axis (visible when viewing from ±X directions)
+    // Creates a cross-billboard tree mesh two perpendicular quads
     Mesh makeCrossBillboardTree(float quadSize, glm::vec3 colour) {
         Mesh tree = Mesh(GL_TRIANGLES);
 
