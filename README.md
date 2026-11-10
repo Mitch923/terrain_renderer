@@ -116,5 +116,4 @@ mkdir build && cmake .. && cmake --build build -j && ./build/terrain_renderer
 
 The Earth day map, Earth specular map, and star sky texture are from https://www.solarsystemscope.com/textures/ and are licensed CC BY 4.0.
 
-This project is course coursework; it carries no license of its own.
-
+The project uses the MIT license. See LICENSE for details.
